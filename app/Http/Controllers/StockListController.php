@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
@@ -25,6 +26,7 @@ class StockListController extends Controller
         $querySql = null;
         $hasCreatedAt = false;
         $syncSummary = null;
+        $buyAlertSymbols = [];
 
         if ($selectedTable && Schema::hasTable($selectedTable)) {
             $tableColumns = Schema::getColumnListing($selectedTable);
@@ -48,6 +50,7 @@ class StockListController extends Controller
 
             $querySql = $query->toSql();
             $rows = $this->combineDuplicateSymbols($query->get(), $columns);
+            $buyAlertSymbols = $this->getBuyAlertSymbols($selectedTable, $rows, $date);
 
             if (in_array($sort, $columns, true)) {
                 $rows = $this->sortRows(
@@ -65,7 +68,7 @@ class StockListController extends Controller
             }
         }
 
-        return view('stock-list', compact('tables', 'selectedTable', 'date', 'hasCreatedAt', 'columns', 'rows', 'sort', 'direction', 'querySql', 'syncSummary'));
+        return view('stock-list', compact('tables', 'selectedTable', 'date', 'hasCreatedAt', 'columns', 'rows', 'sort', 'direction', 'querySql', 'syncSummary', 'buyAlertSymbols'));
     }
 
     public function watchList(Request $request)
@@ -292,6 +295,70 @@ class StockListController extends Controller
         }
 
         return $rows;
+    }
+
+    /**
+     * Return symbols that have appeared on at least four consecutive calendar
+     * days and whose volume on the selected (or latest) day exceeds 65,000.
+     */
+    protected function getBuyAlertSymbols(string $table, $rows, ?string $selectedDate): array
+    {
+        $columns = Schema::getColumnListing($table);
+
+        if (!in_array('symbol', $columns, true)
+            || !in_array('volume', $columns, true)
+            || !in_array('created_at', $columns, true)) {
+            return [];
+        }
+
+        $symbols = $rows->pluck('symbol')
+            ->map(static function ($symbol) {
+                return trim((string) $symbol);
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($symbols->isEmpty()) {
+            return [];
+        }
+
+        $history = DB::table($table)
+            ->select(['symbol', 'volume', 'created_at'])
+            ->whereIn('symbol', $symbols)
+            ->whereNotNull('created_at')
+            ->get()
+            ->groupBy(static function ($row) {
+                return trim((string) $row->symbol);
+            });
+
+        return $history->filter(function ($symbolRows) use ($selectedDate) {
+            $dailyVolumes = $symbolRows->groupBy(function ($row) {
+                return Carbon::parse($row->created_at)->toDateString();
+            })->map(function ($dayRows) {
+                return $dayRows->sum(function ($row) {
+                    return $this->numberValue($row->volume ?? null) ?? 0;
+                });
+            });
+
+            $targetDate = $selectedDate ?: $dailyVolumes->keys()->sortDesc()->first();
+
+            if (!$targetDate || ($dailyVolumes->get($targetDate) ?? 0) <= 65000) {
+                return false;
+            }
+
+            $currentDate = Carbon::parse($targetDate)->startOfDay();
+
+            for ($day = 1; $day < 4; $day++) {
+                $currentDate = $currentDate->copy()->subDay();
+
+                if (!$dailyVolumes->has($currentDate->toDateString())) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->keys()->all();
     }
 
     /**

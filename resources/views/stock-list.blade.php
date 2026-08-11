@@ -3,6 +3,18 @@
 @section('title', 'Stock List')
 @section('page_title', 'Stock List')
 
+@push('styles')
+<style>
+    .buy-alert-badge {
+        animation: buy-alert-blink 1s steps(2, start) infinite;
+    }
+
+    @keyframes buy-alert-blink {
+        50% { opacity: .35; }
+    }
+</style>
+@endpush
+
 @section('content')
     <div class="card">
         <div class="card-header">
@@ -100,6 +112,11 @@
                                                 <td>
                                                     @if($column === 'symbol' && filled($value))
                                                         <a href="https://www.tradingview.com/chart/?symbol=NSE:{{ rawurlencode((string) $value) }}" target="_blank" rel="noopener noreferrer">{{ $value }}</a>
+                                                    @elseif($column === 'stock_name')
+                                                        {{ $value }}
+                                                        @if(in_array(trim((string) ($row->symbol ?? '')), $buyAlertSymbols, true))
+                                                            <span class="badge badge-success buy-alert-badge ml-1">Buy alert</span>
+                                                        @endif
                                                     @else
                                                         {{ $value }}
                                                     @endif

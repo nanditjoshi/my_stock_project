@@ -156,6 +156,48 @@ class StockListPaginationTest extends \Tests\TestCase
         Schema::dropIfExists($table);
     }
 
+    public function test_stock_list_marks_symbols_with_four_consecutive_days_and_high_volume(): void
+    {
+        $table = 'stock_list_buy_alert_' . uniqid();
+
+        Schema::create($table, function ($tableBlueprint) {
+            $tableBlueprint->id();
+            $tableBlueprint->string('stock_name');
+            $tableBlueprint->string('symbol');
+            $tableBlueprint->string('volume');
+            $tableBlueprint->dateTime('created_at');
+        });
+
+        $startDate = now()->startOfDay()->subDays(3);
+        $rows = [];
+
+        for ($day = 0; $day < 4; $day++) {
+            $rows[] = [
+                'stock_name' => 'Qualified Stock',
+                'symbol' => 'QUAL',
+                'volume' => $day === 3 ? '65,001' : '1,000',
+                'created_at' => $startDate->copy()->addDays($day)->toDateTimeString(),
+            ];
+        }
+
+        $rows[] = [
+            'stock_name' => 'Low Volume Stock',
+            'symbol' => 'LOW',
+            'volume' => '65,000',
+            'created_at' => now()->startOfDay()->toDateTimeString(),
+        ];
+        DB::table($table)->insert($rows);
+
+        $response = (new StockListController())->index(Request::create('/stock-list', 'GET', [
+            'table' => $table,
+            'date' => now()->toDateString(),
+        ]));
+
+        $this->assertSame(['QUAL'], $response->getData()['buyAlertSymbols']);
+
+        Schema::dropIfExists($table);
+    }
+
     public function test_selected_table_shows_all_rows_without_pagination(): void
     {
         $table = 'stock_list_pagination_' . uniqid();

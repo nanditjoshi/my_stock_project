@@ -156,3 +156,6 @@ npm run watch
 ## License
 
 This project follows the MIT license declared by its Laravel foundation.
+
+
+php artisan serve --host=127.0.0.1 --port=8000
