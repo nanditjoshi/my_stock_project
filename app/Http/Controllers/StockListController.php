@@ -49,7 +49,11 @@ class StockListController extends Controller
             }
 
             $querySql = $query->toSql();
-            $rows = $this->combineDuplicateSymbols($query->get(), $columns);
+            $sourceRows = $query->get();
+            $rows = $this->addSymbolOccurrenceCounts(
+                $this->combineDuplicateSymbols($sourceRows, $columns),
+                $sourceRows
+            );
             $buyAlertSymbols = $this->getBuyAlertSymbols($selectedTable, $rows, $date);
 
             if (in_array($sort, $columns, true)) {
@@ -81,8 +85,23 @@ class StockListController extends Controller
         $todayTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'day') : [];
         $weekTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'week') : [];
         $monthTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'month') : [];
+        $twoWeeksTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'two_weeks') : [];
+        $quarterTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'quarter') : [];
+        $halfYearTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'half_year') : [];
+        $yearTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'year') : [];
 
-        return view('watch-list', compact('tables', 'selectedTable', 'tableColumns', 'todayTop', 'weekTop', 'monthTop'));
+        return view('watch-list', compact(
+            'tables',
+            'selectedTable',
+            'tableColumns',
+            'todayTop',
+            'weekTop',
+            'monthTop',
+            'twoWeeksTop',
+            'quarterTop',
+            'halfYearTop',
+            'yearTop'
+        ));
     }
 
     public function storeWatchList(Request $request)
@@ -273,11 +292,20 @@ class StockListController extends Controller
         $query = DB::table($table)->select('*');
 
         if ($period === 'day') {
-            $query->whereDate('created_at', now()->toDateString());
+            $query->whereDate('created_at', now()->subDay()->toDateString());
+            //$query->whereDate('created_at', now()->toDateString());
         } elseif ($period === 'week') {
             $query->where('created_at', '>=', now()->startOfWeek()->toDateTimeString());
         } elseif ($period === 'month') {
             $query->where('created_at', '>=', now()->startOfMonth()->toDateTimeString());
+        } elseif ($period === 'two_weeks') {
+            $query->where('created_at', '>=', now()->subWeeks(2)->toDateTimeString());
+        } elseif ($period === 'quarter') {
+            $query->where('created_at', '>=', now()->startOfQuarter()->toDateTimeString());
+        } elseif ($period === 'half_year') {
+            $query->where('created_at', '>=', now()->subMonths(6)->toDateTimeString());
+        } elseif ($period === 'year') {
+            $query->where('created_at', '>=', now()->startOfYear()->toDateTimeString());
         }
 
         $rows = $this->combineDuplicateSymbols($query->get(), $columns)
@@ -386,6 +414,27 @@ class StockListController extends Controller
                 return $row;
             })
             ->values();
+    }
+
+    /**
+     * Add the number of matching symbols from the currently displayed table
+     * data. The count remains available after duplicate rows are combined.
+     */
+    protected function addSymbolOccurrenceCounts($rows, $sourceRows)
+    {
+        $counts = $sourceRows
+            ->map(static function ($row): string {
+                return trim((string) ($row->symbol ?? ''));
+            })
+            ->filter()
+            ->countBy();
+
+        return $rows->map(function ($row) use ($counts) {
+            $symbol = trim((string) ($row->symbol ?? ''));
+            $row->symbol_occurrence_count = $symbol === '' ? 0 : ($counts[$symbol] ?? 0);
+
+            return $row;
+        });
     }
 
     protected function sortRows($rows, string $column, string $direction, bool $numeric)

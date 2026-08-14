@@ -156,6 +156,34 @@ class StockListPaginationTest extends \Tests\TestCase
         Schema::dropIfExists($table);
     }
 
+    public function test_stock_list_includes_each_symbol_occurrence_count(): void
+    {
+        $table = 'stock_list_symbol_count_' . uniqid();
+
+        Schema::create($table, function ($tableBlueprint) {
+            $tableBlueprint->id();
+            $tableBlueprint->string('stock_name');
+            $tableBlueprint->string('symbol');
+            $tableBlueprint->integer('volume');
+        });
+
+        DB::table($table)->insert([
+            ['stock_name' => 'Alpha', 'symbol' => 'ALP', 'volume' => 10],
+            ['stock_name' => 'Alpha', 'symbol' => 'ALP', 'volume' => 20],
+            ['stock_name' => 'Beta', 'symbol' => 'BET', 'volume' => 30],
+        ]);
+
+        $response = (new StockListController())->index(Request::create('/stock-list', 'GET', [
+            'table' => $table,
+        ]));
+
+        $counts = $response->getData()['rows']->pluck('symbol_occurrence_count', 'symbol')->all();
+
+        $this->assertSame(['ALP' => 2, 'BET' => 1], $counts);
+
+        Schema::dropIfExists($table);
+    }
+
     public function test_stock_list_marks_symbols_with_four_consecutive_days_and_high_volume(): void
     {
         $table = 'stock_list_buy_alert_' . uniqid();

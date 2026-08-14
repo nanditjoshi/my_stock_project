@@ -9,7 +9,7 @@ A Laravel 8 web application for importing stock-screening data, browsing filtere
 - Add individual stocks to the watch list from the Stock List page.
 - Sync the latest NSE indicator values from a local stock service, including current price, 9 EMA, 21 EMA, and 30-week EMA.
 - Apply a stock-list filter to sync matching rows to the watch list. Existing symbols are updated instead of duplicated.
-- View volume-based watch-list summaries for today, this week, and this month.
+- View volume-based watch-list summaries for today, this week, this month, two weeks, the current quarter, the last six months, and this year.
 - Generate an OpenAI-powered company scorecard report using current web-search results.
 - Manage users through the standard Laravel resource routes.
 

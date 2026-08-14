@@ -9,7 +9,17 @@
         animation: buy-alert-blink 1s steps(2, start) infinite;
     }
 
+    .symbol-occurrence-count {
+        color: #fd7e14;
+        font-weight: 700;
+        animation: symbol-occurrence-blink 1s steps(2, start) infinite;
+    }
+
     @keyframes buy-alert-blink {
+        50% { opacity: .35; }
+    }
+
+    @keyframes symbol-occurrence-blink {
         50% { opacity: .35; }
     }
 </style>
@@ -112,6 +122,7 @@
                                                 <td>
                                                     @if($column === 'symbol' && filled($value))
                                                         <a href="https://www.tradingview.com/chart/?symbol=NSE:{{ rawurlencode((string) $value) }}" target="_blank" rel="noopener noreferrer">{{ $value }}</a>
+                                                        <span class="symbol-occurrence-count ml-1" title="Times this symbol appears in the current table results">({{ $row->symbol_occurrence_count ?? 1 }})</span>
                                                     @elseif($column === 'stock_name')
                                                         {{ $value }}
                                                         @if(in_array(trim((string) ($row->symbol ?? '')), $buyAlertSymbols, true))

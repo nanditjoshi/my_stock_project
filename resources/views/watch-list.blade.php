@@ -38,7 +38,11 @@
                 @foreach([
                     'One Day' => $todayTop,
                     'One Week' => $weekTop,
+                    'Two Weeks' => $twoWeeksTop,
                     'One Month' => $monthTop,
+                    'Quarterly' => $quarterTop,
+                    'Half Yearly' => $halfYearTop,
+                    'Yearly' => $yearTop,
                 ] as $label => $rows)
                     <div class="col-md-4 mb-4">
                         <div class="card h-100">
