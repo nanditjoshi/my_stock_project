@@ -333,10 +333,10 @@ class StockListController extends Controller
     protected function getBuyAlertSymbols(string $table, $rows, ?string $selectedDate): array
     {
         $columns = Schema::getColumnListing($table);
-
+        
         if (!in_array('symbol', $columns, true)
             || !in_array('volume', $columns, true)
-            || !in_array('chang', $columns, true)
+            || !in_array('change', $columns, true)
             || !in_array('created_at', $columns, true)) {
             return [];
         }
@@ -354,7 +354,7 @@ class StockListController extends Controller
         }
 
         $history = DB::table($table)
-            ->select(['symbol', 'volume', 'chang', 'created_at'])
+            ->select(['symbol', 'volume', 'change', 'created_at'])
             ->whereIn('symbol', $symbols)
             ->whereNotNull('created_at')
             ->get()
@@ -363,15 +363,17 @@ class StockListController extends Controller
             });
 
         return $history->filter(function ($symbolRows) use ($selectedDate) {
+            //var_dump((float) rtrim($symbolRows[0]->change, '%'));die;
             $averageChange = $symbolRows
                 ->map(function ($row) {
-                    return $this->numberValue($row->chang ?? null);
+                    //return $this->numberValue($row->change ?? null);
+                    return (float) rtrim($row->change ?? null);
                 })
                 ->filter(static function ($change) {
                     return $change !== null;
                 })
                 ->avg();
-
+            
             if ($averageChange === null || $averageChange <= 0) {
                 return false;
             }
@@ -392,7 +394,7 @@ class StockListController extends Controller
 
             $currentDate = Carbon::parse($targetDate)->startOfDay();
 
-            for ($day = 1; $day < 4; $day++) {
+            for ($day = 1; $day < 5; $day++) {
                 $currentDate = $currentDate->copy()->subDay();
 
                 if (!$dailyVolumes->has($currentDate->toDateString())) {
