@@ -6,6 +6,7 @@ A Laravel 8 web application for importing stock-screening data, browsing filtere
 
 - Import CSV data into an existing database table or create a new table from a CSV file.
 - Browse stock tables, filter records by date, sort columns, and combine duplicate symbols.
+- Show a blinking Buy alert for qualifying stocks with sustained presence, high volume, and a positive average change.
 - Add individual stocks to the watch list from the Stock List page.
 - Sync the latest NSE indicator values from a local stock service, including current price, 9 EMA, 21 EMA, and 30-week EMA.
 - Apply a stock-list filter to sync matching rows to the watch list. Existing symbols are updated instead of duplicated.
@@ -135,6 +136,16 @@ The report request uses the OpenAI Responses API with web search to produce an e
 - When creating a new table, the importer normalizes names and infers basic column types.
 - CSVs used by stock-list features should include a `symbol` column. `price`, `close`, `volume`, and `created_at` are used when available.
 - The importer uses MySQL table discovery (`SHOW TABLES`), so a MySQL-compatible connection is required.
+
+## Buy alert criteria
+
+The Stock List page displays a **Buy alert** beside a stock when all of the following conditions are met:
+
+- The stock appears in the selected table on at least four consecutive calendar days, including the selected date (or the latest available date when no date is selected).
+- Its total volume on that date is greater than `65,000`.
+- The average of its historical `chang` values in that table is greater than zero.
+
+For this feature, the source table must contain `symbol`, `volume`, `chang`, and `created_at` columns. Rows with a non-numeric `chang` value are excluded from the average.
 
 ## Tests
 
