@@ -327,7 +327,8 @@ class StockListController extends Controller
 
     /**
      * Return symbols that have appeared on at least four consecutive calendar
-     * days and whose volume on the selected (or latest) day exceeds 65,000.
+     * days, whose volume on the selected (or latest) day exceeds 65,000, and
+     * whose historical average `chang` value is positive.
      */
     protected function getBuyAlertSymbols(string $table, $rows, ?string $selectedDate): array
     {
@@ -335,6 +336,7 @@ class StockListController extends Controller
 
         if (!in_array('symbol', $columns, true)
             || !in_array('volume', $columns, true)
+            || !in_array('chang', $columns, true)
             || !in_array('created_at', $columns, true)) {
             return [];
         }
@@ -352,7 +354,7 @@ class StockListController extends Controller
         }
 
         $history = DB::table($table)
-            ->select(['symbol', 'volume', 'created_at'])
+            ->select(['symbol', 'volume', 'chang', 'created_at'])
             ->whereIn('symbol', $symbols)
             ->whereNotNull('created_at')
             ->get()
@@ -361,6 +363,19 @@ class StockListController extends Controller
             });
 
         return $history->filter(function ($symbolRows) use ($selectedDate) {
+            $averageChange = $symbolRows
+                ->map(function ($row) {
+                    return $this->numberValue($row->chang ?? null);
+                })
+                ->filter(static function ($change) {
+                    return $change !== null;
+                })
+                ->avg();
+
+            if ($averageChange === null || $averageChange <= 0) {
+                return false;
+            }
+
             $dailyVolumes = $symbolRows->groupBy(function ($row) {
                 return Carbon::parse($row->created_at)->toDateString();
             })->map(function ($dayRows) {
