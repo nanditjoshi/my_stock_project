@@ -71,6 +71,9 @@
                                                             <td>
                                                                 @if($column === 'symbol' && filled($value))
                                                                     <a href="https://www.tradingview.com/chart/?symbol=NSE:{{ rawurlencode((string) $value) }}" target="_blank" rel="noopener noreferrer">{{ $value }}</a>
+                                                                    @if($tableSupportsWatched)
+                                                                        <button type="button" class="btn btn-link btn-sm p-0 ml-1 watched-toggle" data-table="{{ $selectedTable }}" data-symbol="{{ $value }}" data-is-whatched="{{ $row->is_whatched ? '1' : '0' }}" aria-label="Toggle watched status"><i class="fas fa-star {{ $row->is_whatched ? 'text-success' : 'text-muted' }}"></i></button>
+                                                                    @endif
                                                                 @else
                                                                     {{ $value }}
                                                                 @endif
@@ -90,3 +93,34 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    $(function () {
+        $('.watched-toggle').on('click', async function () {
+            var button = $(this);
+            var watched = button.data('is-whatched') === 1 || button.data('is-whatched') === '1';
+            button.prop('disabled', true);
+            try {
+                var response = await fetch('{{ route('stock.list.watched.toggle') }}', {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                    body: JSON.stringify({ table: button.data('table'), symbol: button.data('symbol'), is_whatched: watched ? 0 : 1 })
+                });
+                var payload = await response.json();
+                if (!response.ok) throw new Error(payload.message || 'Unable to update watched status.');
+                $('.watched-toggle').filter(function () {
+                    return $(this).data('table') === payload.table && $(this).data('symbol') === payload.symbol;
+                }).each(function () {
+                    $(this).data('is-whatched', payload.is_whatched ? 1 : 0).find('i')
+                        .toggleClass('text-success', payload.is_whatched).toggleClass('text-muted', !payload.is_whatched);
+                });
+            } catch (error) {
+                window.alert(error.message || 'Unable to update watched status.');
+            } finally {
+                button.prop('disabled', false);
+            }
+        });
+    });
+</script>
+@endpush

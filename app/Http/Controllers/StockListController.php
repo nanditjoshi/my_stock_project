@@ -39,9 +39,16 @@ class StockListController extends Controller
             }
 
             $query = DB::table($selectedTable);
+            $queryColumns = $columns;
 
-            if ($columns !== []) {
-                $query->select($columns);
+            // The star state is needed by the view but is not a regular stock
+            // data column, so keep it out of the visible table columns.
+            if (in_array('is_whatched', $tableColumns, true)) {
+                $queryColumns[] = 'is_whatched';
+            }
+
+            if ($queryColumns !== []) {
+                $query->select(array_values(array_unique($queryColumns)));
             }
 
             if ($date && $hasCreatedAt) {
@@ -51,7 +58,7 @@ class StockListController extends Controller
             $querySql = $query->toSql();
             $sourceRows = $query->get();
             $rows = $this->addSymbolOccurrenceCounts(
-                $this->combineDuplicateSymbols($sourceRows, $columns),
+                $this->combineDuplicateSymbols($sourceRows, $queryColumns),
                 $sourceRows
             );
             $buyAlertSymbols = $this->getBuyAlertSymbols($selectedTable, $rows, $date);
@@ -89,6 +96,8 @@ class StockListController extends Controller
         $quarterTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'quarter') : [];
         $halfYearTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'half_year') : [];
         $yearTop = $tableExists ? $this->getTopVolumeRows($selectedTable, 'year') : [];
+        $tableSupportsWatched = in_array($selectedTable, $this->watchedTables(), true)
+            && in_array('is_whatched', $tableColumns, true);
 
         return view('watch-list', compact(
             'tables',
@@ -100,8 +109,186 @@ class StockListController extends Controller
             'twoWeeksTop',
             'quarterTop',
             'halfYearTop',
-            'yearTop'
+            'yearTop',
+            'tableSupportsWatched'
         ));
+    }
+
+    /**
+     * Show watched records from the two stock signal tables.
+     */
+    public function dashboard()
+    {
+        $watchedRecords = collect();
+        $smData = $this->getSmData();
+
+        foreach ($this->watchedTables() as $table) {
+            if (!Schema::hasTable($table)
+                || !Schema::hasColumn($table, 'symbol')
+                || !Schema::hasColumn($table, 'is_whatched')) {
+                continue;
+            }
+
+            $columns = Schema::getColumnListing($table);
+            $priceColumn = in_array('price', $columns, true)
+                ? 'price'
+                : (in_array('close', $columns, true) ? 'close' : null);
+
+            $query = DB::table($table)
+                ->select(['symbol', 'is_whatched'])
+                ->where('is_whatched', true);
+
+            if ($priceColumn !== null) {
+                $query->addSelect($priceColumn);
+            }
+
+            if (in_array('created_at', $columns, true)) {
+                $query->addSelect('created_at');
+            }
+
+            $watchedRecords = $watchedRecords->concat($query->get()->map(function ($row) use ($table, $priceColumn) {
+                return (object) [
+                    'table' => $table,
+                    'symbol' => $row->symbol,
+                    'price' => $priceColumn === null ? null : $row->{$priceColumn},
+                    'is_whatched' => (bool) $row->is_whatched,
+                    'recorded_at' => $row->created_at ?? null,
+                ];
+            }));
+        }
+
+        // A symbol can appear several times in historical source rows or in
+        // both source tables. Keep only its newest watched record.
+        $watchedRecords = $watchedRecords
+            ->sortByDesc('recorded_at')
+            ->unique(function ($record) {
+                return strtoupper(trim((string) $record->symbol));
+            })
+            ->values();
+
+        return view('dashboard', compact('watchedRecords', 'smData'));
+    }
+
+    /**
+     * Download every 30w EMA cross record in a symbol-by-date change matrix.
+     */
+    public function downloadSmData()
+    {
+        $smData = $this->getSmData();
+        $filename = 'smdata-' . now()->format('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($smData) {
+            $handle = fopen('php://output', 'w');
+            $dateHeaders = $smData['dates']->map(function ($date) {
+                return Carbon::parse($date)->format('dm');
+            })->all();
+            fputcsv($handle, array_merge(['symbol', 'Close / Price'], $dateHeaders));
+
+            foreach ($smData['rows'] as $row) {
+                $values = [$row->symbol, $row->price];
+                foreach ($smData['dates'] as $date) {
+                    $values[] = $row->changes[$date] ?? '';
+                }
+                fputcsv($handle, $values);
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Refresh every saved snapshot from the stock service. A 503 response is
+     * retried against the other supported exchange for the same symbol.
+     */
+    public function syncStockSnapshots()
+    {
+        if (!Schema::hasTable('stock_snapshots')) {
+            return redirect()->route('dashboard')->with('error', 'The stock snapshots table does not exist.');
+        }
+
+        $snapshots = DB::table('stock_snapshots')
+            ->select(['id', 'symbol', 'exchange'])
+            ->whereNotNull('symbol')
+            ->where(function ($query) {
+                $query->whereNull('updated_at')
+                    ->orWhereDate('updated_at', '!=', now()->toDateString());
+            })
+            ->get();
+        $synced = 0;
+        $skipped = 0;
+
+        foreach ($snapshots as $snapshot) {
+            $symbol = trim((string) $snapshot->symbol);
+            if ($symbol === '') {
+                $skipped++;
+                continue;
+            }
+
+            $exchange = strtoupper(trim((string) $snapshot->exchange));
+            $exchange = in_array($exchange, ['NSE', 'BSE'], true) ? $exchange : 'NSE';
+
+            try {
+                $response = Http::acceptJson()
+                    ->timeout(10)
+                    ->get('http://127.0.0.1:8001/api/v1/stocks', [
+                        'symbol' => $symbol,
+                        'exchange' => $exchange,
+                    ]);
+
+                if ($response->status() === 503) {
+                    $exchange = $exchange === 'NSE' ? 'BSE' : 'NSE';
+                    $response = Http::acceptJson()
+                        ->timeout(10)
+                        ->get('http://127.0.0.1:8001/api/v1/stocks', [
+                            'symbol' => $symbol,
+                            'exchange' => $exchange,
+                        ]);
+                }
+
+                if ($response->failed() || !$this->updateStockSnapshot($snapshot->id, $exchange, $response->json())) {
+                    $skipped++;
+                    continue;
+                }
+
+                $synced++;
+            } catch (\Throwable $exception) {
+                $skipped++;
+            }
+        }
+
+        return redirect()->route('dashboard')->with('snapshotSyncSummary', compact('synced', 'skipped'));
+    }
+
+    /**
+     * Toggle a symbol's watched state in one of the approved signal tables.
+     */
+    public function toggleWatched(Request $request)
+    {
+        $validated = $request->validate([
+            'table' => ['required', 'string', 'in:' . implode(',', $this->watchedTables())],
+            'symbol' => ['required', 'string', 'max:255'],
+            'is_whatched' => ['required', 'boolean'],
+        ]);
+
+        $table = $validated['table'];
+        if (!Schema::hasTable($table)
+            || !Schema::hasColumn($table, 'symbol')
+            || !Schema::hasColumn($table, 'is_whatched')) {
+            return response()->json(['message' => 'This table does not support watched stocks.'], 422);
+        }
+
+        $values = ['is_whatched' => (bool) $validated['is_whatched']];
+        if (Schema::hasColumn($table, 'updated_at')) {
+            $values['updated_at'] = now();
+        }
+
+        DB::table($table)->where('symbol', trim($validated['symbol']))->update($values);
+
+        return response()->json([
+            'table' => $table,
+            'symbol' => trim($validated['symbol']),
+            'is_whatched' => $values['is_whatched'],
+        ]);
     }
 
     public function storeWatchList(Request $request)
@@ -186,6 +373,17 @@ class StockListController extends Controller
                         'symbol' => $symbol,
                         'exchange' => 'NSE',
                     ]);
+
+                // Some symbols are only available through BSE. Retry there
+                // only when the NSE service explicitly reports a 503.
+                if ($response->status() === 503) {
+                    $response = Http::acceptJson()
+                        ->timeout(10)
+                        ->get('http://127.0.0.1:8001/api/v1/stocks', [
+                            'symbol' => $symbol,
+                            'exchange' => 'BSE',
+                        ]);
+                }
 
                 if ($response->failed()) {
                     $skipped++;
@@ -479,6 +677,12 @@ class StockListController extends Controller
                     return $this->numberValue($symbolRow->volume ?? null) ?? 0;
                 });
 
+                if (isset($row->is_whatched)) {
+                    $row->is_whatched = $symbolRows->contains(function ($symbolRow) {
+                        return (bool) ($symbolRow->is_whatched ?? false);
+                    });
+                }
+
                 return $row;
             })
             ->values();
@@ -544,5 +748,129 @@ class StockListController extends Controller
         }
 
         return $list;
+    }
+
+    protected function watchedTables(): array
+    {
+        return ['20_cross_50', '30w_ema_cross'];
+    }
+
+    /**
+     * Build the SM data export/preview. Each date column contains the change
+     * recorded for a symbol on that date, and price is taken from its newest row.
+     */
+    protected function getSmData(): array
+    {
+        $table = '30w_ema_cross';
+        $empty = ['dates' => collect(), 'rows' => collect(), 'recordCount' => 0];
+
+        if (!Schema::hasTable($table)) {
+            return $empty;
+        }
+
+        $columns = Schema::getColumnListing($table);
+        $requiredColumns = ['symbol', 'close', 'change', 'created_at'];
+        if (array_diff($requiredColumns, $columns) !== []) {
+            return $empty;
+        }
+
+        $selectColumns = ['symbol', 'close', 'change', 'created_at'];
+        $hasWatchedColumn = in_array('is_whatched', $columns, true);
+        if ($hasWatchedColumn) {
+            $selectColumns[] = 'is_whatched';
+        }
+
+        $records = DB::table($table)
+            ->select($selectColumns)
+            ->whereNotNull('symbol')
+            ->whereNotNull('created_at')
+            ->orderBy('created_at')
+            ->get()
+            ->map(function ($record) {
+                $record->record_date = Carbon::parse($record->created_at)->toDateString();
+                return $record;
+            });
+
+        $dates = $records->pluck('record_date')->unique()->sortDesc()->values();
+        $rows = $records->groupBy(function ($record) {
+            return trim((string) $record->symbol);
+        })->filter(function ($symbolRows, $symbol) {
+            return $symbol !== '';
+        })->map(function ($symbolRows, $symbol) {
+            $latestRecord = $symbolRows->sortByDesc('created_at')->first();
+            $changes = $symbolRows->mapWithKeys(function ($record) {
+                return [$record->record_date => $record->change];
+            });
+
+            return (object) [
+                'symbol' => $symbol,
+                'price' => $latestRecord->close,
+                'changes' => $changes,
+                'is_whatched' => $symbolRows->contains(function ($record) {
+                    return (bool) ($record->is_whatched ?? false);
+                }),
+            ];
+        })->sortBy('symbol')->values();
+
+        return compact('dates', 'rows') + ['recordCount' => $records->count()];
+    }
+
+    /**
+     * Store the fields supplied by the stock service for one snapshot record.
+     */
+    protected function updateStockSnapshot(int $id, string $exchange, $payload): bool
+    {
+        $data = is_array($payload) ? ($payload['data'] ?? $payload['result'] ?? $payload) : null;
+        $data = is_array($data) && isset($data[0]) && is_array($data[0]) ? $data[0] : $data;
+
+        if (!is_array($data)) {
+            return false;
+        }
+
+        $values = [
+            'exchange' => $exchange,
+            'fetched_at' => now(),
+            'source_payload' => json_encode($payload),
+            'updated_at' => now(),
+        ];
+        $stringFields = [
+            'company_name' => ['company_name', 'companyName', 'stock_name', 'name', 'longName', 'shortName'],
+            'sector' => ['sector'],
+        ];
+        $numericFields = [
+            'current_price' => ['current_price', 'currentPrice', 'price', 'close'],
+            'previous_close' => ['previous_close', 'previousClose'],
+            'price_change' => ['price_change', 'priceChange', 'change'],
+            'price_change_percent' => ['price_change_percent', 'priceChangePercent', 'change_percent', 'changePercent'],
+            'ema_9' => ['ema_9', 'ema9', '9ema', '9_ema', 'EMA9'],
+            'ema_21' => ['ema_21', 'ema21', '21ema', '21_ema', 'EMA21'],
+            'ema_10_week' => ['ema_10_week', 'ema10week', '10wema', '10_week_ema', 'ema_10w', 'EMA10W'],
+            'ema_30_week' => ['ema_30_week', 'ema30week', '30wema', '30_week_ema', 'ema_30w', 'EMA30W'],
+        ];
+
+        foreach ($stringFields as $column => $keys) {
+            foreach ($keys as $key) {
+                if (array_key_exists($key, $data) && $data[$key] !== null) {
+                    $values[$column] = (string) $data[$key];
+                    break;
+                }
+            }
+        }
+
+        foreach ($numericFields as $column => $keys) {
+            foreach ($keys as $key) {
+                if (array_key_exists($key, $data)) {
+                    $number = $this->numberValue(str_replace('%', '', (string) $data[$key]));
+                    if ($number !== null) {
+                        $values[$column] = $number;
+                    }
+                    break;
+                }
+            }
+        }
+
+        DB::table('stock_snapshots')->where('id', $id)->update($values);
+
+        return true;
     }
 }
