@@ -112,6 +112,7 @@ class StockListController extends Controller
             'current_price' => ['required', 'numeric'],
             '9ema' => ['required', 'numeric'],
             '21ema' => ['required', 'numeric'],
+            '10wema' => ['required', 'numeric'],
             '30wema' => ['required', 'numeric'],
         ]);
 
@@ -121,6 +122,7 @@ class StockListController extends Controller
             'current_price' => $validated['current_price'],
             '9ema' => $validated['9ema'],
             '21ema' => $validated['21ema'],
+            '10wema' => $validated['10wema'],
             '30wema' => $validated['30wema'],
             'created_at' => now(),
             'updated_at' => now(),
@@ -202,9 +204,10 @@ class StockListController extends Controller
                 $currentPrice = $this->indicatorValue($data, ['current_price', 'currentPrice', 'price', 'close']);
                 $ema9 = $this->indicatorValue($data, ['9ema', 'ema_9', 'ema9', '9_ema', 'EMA9']);
                 $ema21 = $this->indicatorValue($data, ['21ema', 'ema_21', 'ema21', '21_ema', 'EMA21']);
+                $ema10Week = $this->indicatorValue($data, ['ema_10_week', '10wema', 'ema10week', '10_week_ema', 'ema_10w', 'EMA10W']);
                 $ema30Week = $this->indicatorValue($data, ['30wema', 'ema_30_week', 'ema30week', '30_week_ema', 'ema_30w', 'EMA30W']);
 
-                if ($currentPrice === null || $ema9 === null || $ema21 === null || $ema30Week === null) {
+                if ($currentPrice === null || $ema9 === null || $ema21 === null || $ema10Week === null || $ema30Week === null) {
                     $skipped++;
                     continue;
                 }
@@ -215,6 +218,7 @@ class StockListController extends Controller
                     'current_price' => $currentPrice,
                     '9ema' => $ema9,
                     '21ema' => $ema21,
+                    '10wema' => $ema10Week,
                     '30wema' => $ema30Week,
                     'updated_at' => now(),
                 ];
@@ -316,6 +320,8 @@ class StockListController extends Controller
             ->values()
             ->all();
 
+        $this->addLatestPrices($table, $rows, $columns);
+
         foreach ($rows as $row) {
             if (isset($row->volume) && is_string($row->volume)) {
                 $row->volume = (int) preg_replace('/[^0-9]/', '', $row->volume);
@@ -323,6 +329,51 @@ class StockListController extends Controller
         }
 
         return $rows;
+    }
+
+    /**
+     * Replace each displayed row's price with the most recent recorded price
+     * for that symbol. Volume remains aggregated for the selected period, but
+     * prices always reflect the latest row in the selected table.
+     */
+    protected function addLatestPrices(string $table, array $rows, array $columns): void
+    {
+        $priceColumn = in_array('close', $columns, true)
+            ? 'close'
+            : (in_array('price', $columns, true) ? 'price' : null);
+
+        if ($rows === [] || $priceColumn === null || !in_array('symbol', $columns, true)) {
+            return;
+        }
+
+        $symbols = collect($rows)
+            ->pluck('symbol')
+            ->map(static fn ($symbol) => trim((string) $symbol))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($symbols->isEmpty()) {
+            return;
+        }
+
+        $latestRows = DB::table($table)
+            ->select(['symbol', $priceColumn, 'created_at'])
+            ->whereIn('symbol', $symbols)
+            ->whereNotNull($priceColumn)
+            ->orderByDesc('created_at')
+            ->get()
+            ->unique(static fn ($row) => trim((string) $row->symbol))
+            ->keyBy(static fn ($row) => trim((string) $row->symbol));
+
+        foreach ($rows as $row) {
+            $symbol = trim((string) ($row->symbol ?? ''));
+            $latestRow = $latestRows->get($symbol);
+
+            if ($latestRow !== null) {
+                $row->{$priceColumn} = $latestRow->{$priceColumn};
+            }
+        }
     }
 
     /**

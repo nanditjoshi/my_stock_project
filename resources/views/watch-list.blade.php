@@ -5,8 +5,9 @@
 
 @section('content')
     @php
+        $priceColumn = in_array('close', $tableColumns, true) ? 'close' : 'price';
         $displayColumns = collect($tableColumns)
-            ->filter(fn ($column) => in_array($column, ['symbol', 'close', 'volume'], true))
+            ->filter(fn ($column) => in_array($column, ['symbol', $priceColumn, 'volume'], true))
             ->values()
             ->all();
     @endphp
@@ -58,7 +59,7 @@
                                             <thead>
                                                 <tr>
                                                     @foreach($displayColumns as $column)
-                                                        <th>{{ $column }}</th>
+                                                        <th>{{ $column === $priceColumn ? 'Latest Price' : $column }}</th>
                                                     @endforeach
                                                 </tr>
                                             </thead>

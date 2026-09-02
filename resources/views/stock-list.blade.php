@@ -197,6 +197,10 @@
                         <label for="watch-list-21ema">21 EMA</label>
                         <input type="number" name="21ema" id="watch-list-21ema" class="form-control" step="0.01" required>
                     </div>
+                    <div class="form-group">
+                        <label for="watch-list-ema-10-week">10 Week EMA</label>
+                        <input type="number" name="10wema" id="watch-list-ema-10-week" class="form-control" step="0.01" required>
+                    </div>
                     <div class="form-group mb-0">
                         <label for="watch-list-30wema">30 Week EMA</label>
                         <input type="number" name="30wema" id="watch-list-30wema" class="form-control" step="0.01" required>
@@ -217,7 +221,7 @@
         $('.add-to-watch-list').on('click', function () {
             $('#watch-list-symbol').val($(this).data('symbol'));
             $('#watch-list-price').val($(this).data('price'));
-            $('#watch-list-current-price, #watch-list-9ema, #watch-list-21ema, #watch-list-30wema').val('');
+            $('#watch-list-current-price, #watch-list-9ema, #watch-list-21ema, #watch-list-ema-10-week, #watch-list-30wema').val('');
             $('#sync-stock-status').text('').removeClass('text-danger text-success');
         });
 
@@ -250,15 +254,17 @@
                 var currentPrice = data.current_price ?? data.currentPrice ?? data.price ?? data.close;
                 var ema9 = data['9ema'] ?? data.ema_9 ?? data.ema9 ?? data['9_ema'] ?? data.EMA9;
                 var ema21 = data['21ema'] ?? data.ema_21 ?? data.ema21 ?? data['21_ema'] ?? data.EMA21;
+                var ema10Week = data.ema_10_week ?? data['10wema'] ?? data.ema10week ?? data['10_week_ema'] ?? data.ema_10w ?? data.EMA10W;
                 var ema30Week = data['30wema'] ?? data.ema_30_week ?? data.ema30week ?? data['30_week_ema'] ?? data.ema_30w ?? data.EMA30W;
 
-                if (currentPrice === undefined || ema9 === undefined || ema21 === undefined || ema30Week === undefined) {
+                if (currentPrice === undefined || ema9 === undefined || ema21 === undefined || ema10Week === undefined || ema30Week === undefined) {
                     throw new Error('The sync service response is missing one or more required indicators.');
                 }
 
                 $('#watch-list-current-price').val(currentPrice);
                 $('#watch-list-9ema').val(ema9);
                 $('#watch-list-21ema').val(ema21);
+                $('#watch-list-ema-10-week').val(ema10Week);
                 $('#watch-list-30wema').val(ema30Week);
                 status.text('Latest values synced.').removeClass('text-danger').addClass('text-success');
             } catch (error) {

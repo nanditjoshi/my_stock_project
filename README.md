@@ -84,12 +84,14 @@ The table must include these columns:
 | `9ema` | 9-period EMA |
 | `21ema` | 21-period EMA |
 | `30wema` | 30-week EMA |
+| `10wema` | 10-week EMA |
 | `created_at`, `updated_at` | Laravel timestamps |
 
 The current database already has the `9ema` column. For a fresh database created from the original watch-list migration, add this column before using the watch-list feature:
 
 ```sql
 ALTER TABLE whatch_list ADD COLUMN `9ema` DECIMAL(15,2) NULL AFTER current_price;
+ALTER TABLE whatch_list ADD COLUMN `10wema` DECIMAL(15,2) NULL AFTER `21ema`;
 ```
 
 ## External services
@@ -102,7 +104,7 @@ Clicking **Sync** in the Add to Watch List modal calls:
 GET http://127.0.0.1:8001/api/v1/stocks?symbol={SYMBOL}&exchange=NSE
 ```
 
-The service must return a JSON object (or a `data`/`result` wrapper) containing current price, 9 EMA, 21 EMA, and 30-week EMA. The application accepts common field variants such as `9ema`, `ema_9`, `21ema`, `ema_21`, and `30wema`.
+The service must return a JSON object (or a `data`/`result` wrapper) containing current price, 9 EMA, 21 EMA, 10-week EMA, and 30-week EMA. The application accepts common field variants such as `9ema`, `ema_9`, `21ema`, `ema_21`, `ema_10_week`, `10wema`, and `30wema`.
 
 Ensure this service is running before using manual sync or **Apply Filter** watch-list syncing.
 
