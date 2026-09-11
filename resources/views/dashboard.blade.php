@@ -17,6 +17,29 @@
     .sm-data-table thead .sm-symbol-column,
     .sm-data-table thead .sm-price-column { z-index: 3; }
     .sm-data-table .sm-date-column { padding: .3rem .45rem; white-space: nowrap; width: 1%; }
+
+    .stock-chart-preview {
+        display: none;
+        position: fixed;
+        width: 440px;
+        max-width: calc(100vw - 24px);
+        height: 330px;
+        max-height: calc(100vh - 24px);
+        z-index: 1080;
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, .2);
+        border-radius: .25rem;
+        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .2);
+        overflow: hidden;
+    }
+
+    .stock-chart-preview.is-visible { display: flex; flex-direction: column; }
+    .stock-chart-preview__header { padding: .45rem .65rem; border-bottom: 1px solid #dee2e6; }
+    .stock-chart-preview__chart { flex: 1; min-height: 0; border: 0; width: 100%; }
+
+    @media (hover: none), (pointer: coarse) {
+        .stock-chart-preview { display: none !important; }
+    }
 </style>
 @endpush
 
@@ -89,7 +112,7 @@
                             @foreach($smData['rows'] as $row)
                                 <tr>
                                     <td class="sm-symbol-column">
-                                        <a href="https://www.tradingview.com/chart/?symbol=NSE:{{ rawurlencode((string) $row->symbol) }}" target="_blank" rel="noopener noreferrer">{{ $row->symbol }}</a>
+                                        <a class="stock-symbol-preview" href="https://www.tradingview.com/chart/?symbol=NSE:{{ rawurlencode((string) $row->symbol) }}" data-symbol="{{ $row->symbol }}" target="_blank" rel="noopener noreferrer">{{ $row->symbol }}</a>
                                         <button type="button" class="btn btn-link btn-sm p-0 ml-1 watched-toggle" data-table="30w_ema_cross" data-symbol="{{ $row->symbol }}" data-is-whatched="{{ $row->is_whatched ? '1' : '0' }}" aria-label="Toggle watched status"><i class="fas fa-star {{ $row->is_whatched ? 'text-success' : 'text-muted' }}"></i></button>
                                     </td>
                                     <td class="sm-price-column">{{ $row->price }}</td>
@@ -120,7 +143,7 @@
                             @foreach($watchedRecords as $record)
                                 <tr data-watched-row="{{ $record->table }}-{{ $record->symbol }}">
                                     <td>
-                                        <a href="https://www.tradingview.com/chart/?symbol=NSE:{{ rawurlencode((string) $record->symbol) }}" target="_blank" rel="noopener noreferrer">{{ $record->symbol }}</a>
+                                        <a class="stock-symbol-preview" href="https://www.tradingview.com/chart/?symbol=NSE:{{ rawurlencode((string) $record->symbol) }}" data-symbol="{{ $record->symbol }}" target="_blank" rel="noopener noreferrer">{{ $record->symbol }}</a>
                                     </td>
                                     <td>{{ $record->price }}</td>
                                     <td><button type="button" class="btn btn-link btn-sm p-0 watched-toggle" data-table="{{ $record->table }}" data-symbol="{{ $record->symbol }}" data-is-whatched="1" aria-label="Toggle watched status"><i class="fas fa-star text-success"></i></button></td>
@@ -137,6 +160,95 @@
 @push('scripts')
 <script>
     $(function () {
+        var preview = $('<div>', {
+            class: 'stock-chart-preview',
+            role: 'dialog',
+            'aria-label': 'Stock chart preview'
+        }).appendTo('body');
+        var closeTimer;
+        var activeSymbol;
+
+        function chartUrl(symbol) {
+            var params = new URLSearchParams({
+                symbol: 'NSE:' + symbol,
+                interval: 'D',
+                hidesidetoolbar: '1',
+                symboledit: '1',
+                saveimage: '0',
+                toolbarbg: 'f1f3f6',
+                hideideas: '1',
+                theme: 'light',
+                style: '1',
+                timezone: 'Asia/Kolkata',
+                withdateranges: '1',
+                locale: 'en'
+            });
+
+            return 'https://s.tradingview.com/widgetembed/?' + params.toString();
+        }
+
+        function positionPreview(link) {
+            var rect = link.getBoundingClientRect();
+            var width = preview.outerWidth();
+            var height = preview.outerHeight();
+            var left = rect.right + 12;
+            var top = rect.top;
+
+            if (left + width > window.innerWidth - 12) left = rect.left - width - 12;
+            if (left < 12) left = Math.max(12, window.innerWidth - width - 12);
+            if (top + height > window.innerHeight - 12) top = Math.max(12, window.innerHeight - height - 12);
+
+            preview.css({ left: left + 'px', top: top + 'px' });
+        }
+
+        function openPreview(link) {
+        return false;
+            window.clearTimeout(closeTimer);
+            var symbol = String($(link).data('symbol') || '').trim();
+            if (!symbol) return;
+
+            if (activeSymbol !== symbol) {
+                activeSymbol = symbol;
+                preview.empty().append(
+                    $('<div>', { class: 'stock-chart-preview__header d-flex justify-content-between align-items-center' }).append(
+                        $('<strong>').text(symbol + ' — Daily chart'),
+                        $('<a>', { href: link.href, target: '_blank', rel: 'noopener noreferrer', class: 'btn btn-outline-primary btn-xs ml-2' }).text('Open full chart')
+                    ),
+                    $('<iframe>', { class: 'stock-chart-preview__chart', src: chartUrl(symbol), title: symbol + ' chart', loading: 'lazy' })
+                );
+            }
+
+            preview.addClass('is-visible');
+            positionPreview(link);
+        }
+
+        function scheduleClose() {
+            closeTimer = window.setTimeout(function () {
+                preview.removeClass('is-visible');
+                activeSymbol = null;
+            }, 180);
+        }
+
+        $('.stock-symbol-preview')
+            .on('mouseenter focusin', function () { openPreview(this); })
+            .on('mouseleave focusout', scheduleClose);
+
+        preview
+            .on('mouseenter focusin', function () { window.clearTimeout(closeTimer); })
+            .on('mouseleave focusout', scheduleClose);
+
+        $(window).on('scroll resize', function () {
+            preview.removeClass('is-visible');
+            activeSymbol = null;
+        });
+
+        $(document).on('keydown', function (event) {
+            if (event.key === 'Escape') {
+                preview.removeClass('is-visible');
+                activeSymbol = null;
+            }
+        });
+
         $('.watched-toggle').on('click', async function () {
             var button = $(this);
             var watched = button.data('is-whatched') === 1 || button.data('is-whatched') === '1';

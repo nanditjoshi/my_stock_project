@@ -142,7 +142,43 @@ class CsvImportController extends Controller
             }
         }
 
+        fclose($handle);
+
+        // Uploaded files are stored in PHP's temporary directory. Remove the
+        // temporary copy once the import has completed successfully.
+        if (is_file($path)) {
+            unlink($path);
+        }
+
+        $this->deleteUploadedSourceFile($file->getClientOriginalName());
+
         return Redirect::back()->with('success', 'CSV imported successfully into table ' . $table . '. Records inserted: ' . $rowCount);
+    }
+
+    /**
+     * Delete the local source CSV only when it resolves inside the configured
+     * upload directory. Client filenames must never be used as arbitrary paths.
+     */
+    protected function deleteUploadedSourceFile(string $originalFilename): void
+    {
+        $sourceDirectory = config('csv-import.source_directory');
+
+        if (!$sourceDirectory) {
+            return;
+        }
+
+        $resolvedDirectory = realpath($sourceDirectory);
+        if ($resolvedDirectory === false) {
+            return;
+        }
+
+        $sourcePath = realpath($resolvedDirectory . DIRECTORY_SEPARATOR . basename($originalFilename));
+
+        if ($sourcePath === false || dirname($sourcePath) !== $resolvedDirectory || !is_file($sourcePath)) {
+            return;
+        }
+
+        unlink($sourcePath);
     }
 
     protected function getTables(): array
