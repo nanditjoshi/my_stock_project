@@ -5,6 +5,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\CsvImportController;
 use App\Http\Controllers\StockListController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\TradingJournalController;
 
 Route::get('/', [StockListController::class, 'dashboard'])->name('dashboard');
 Route::post('/dashboard/sync-stock-snapshots', [StockListController::class, 'syncStockSnapshots'])->name('dashboard.stock-snapshots.sync');
@@ -20,3 +21,6 @@ Route::get('/stock-list/sync', [StockListController::class, 'syncStock'])->name(
 Route::get('/watch-list', [StockListController::class, 'watchList'])->name('watch.list.index');
 Route::get('/report', [ReportController::class, 'index'])->name('report.index');
 Route::post('/report/generate', [ReportController::class, 'generate'])->name('report.generate');
+Route::get('/trading-journals/symbol-search', [TradingJournalController::class, 'searchSymbols'])->name('trading-journals.symbol-search');
+Route::get('/trading-journals', [TradingJournalController::class, 'index'])->name('trading-journals.index');
+Route::post('/trading-journals', [TradingJournalController::class, 'store'])->name('trading-journals.store');

@@ -59,6 +59,9 @@
                     <li class="nav-item">
                         <a href="{{ route('report.index') }}" class="nav-link"><i class="nav-icon fas fa-chart-bar"></i><p>Report</p></a>
                     </li>
+                    <li class="nav-item">
+                        <a href="{{ route('trading-journals.index') }}" class="nav-link"><i class="nav-icon fas fa-book"></i><p>Entry Of Stock</p></a>
+                    </li>
                 </ul>
             </nav>
         </div>

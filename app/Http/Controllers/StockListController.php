@@ -229,7 +229,7 @@ class StockListController extends Controller
 
             try {
                 $response = Http::acceptJson()
-                    ->timeout(10)
+                    ->timeout(720)
                     ->get('http://127.0.0.1:8001/api/v1/stocks', [
                         'symbol' => $symbol,
                         'exchange' => $exchange,
