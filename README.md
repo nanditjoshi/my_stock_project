@@ -13,6 +13,8 @@ A Laravel 8 web application for importing stock-screening data, browsing filtere
 - View volume-based watch-list summaries for today, this week, this month, two weeks, the current quarter, the last six months, and this year.
 - Generate an OpenAI-powered company scorecard report using current web-search results.
 - Manage users through the standard Laravel resource routes.
+- Maintain user-linked accounts and reusable investment-type master records.
+- Create, view, edit, and delete portfolio entries for stocks, mutual funds, PF, FD, PPF, SSC, and other investment types.
 
 ## Technology
 
@@ -69,6 +71,26 @@ A Laravel 8 web application for importing stock-screening data, browsing filtere
    ```
 
    Open `http://127.0.0.1:8000` in a browser.
+
+## Portfolio management
+
+The **Portfolio** section in the sidebar contains three CRUD pages:
+
+- **Accounts** (`/accounts`): associate account names and optional account numbers with a user, and set the account status.
+- **Investment Types** (`/investment-types`): maintain types such as Mutual Fund, PF, FD, Stock, PPF, or SSC.
+- **Portfolio** (`/portfolio`): record an investment under an account and investment type, including symbol, quantity, prices, total investment, P/L, and status.
+
+Create users, accounts, and investment types before adding portfolio entries. Each account belongs to one user, and each portfolio row belongs to one account and one investment type. A user can have multiple accounts; an account and an investment type can each be referenced by many portfolio rows. Deleting an account also deletes its portfolio rows. An investment type cannot be deleted while portfolio rows still reference it.
+
+The migration `2026_10_08_000000_create_portfolio_master_tables.php` creates:
+
+| Table | Main columns |
+| --- | --- |
+| `account_master` | `user_id`, `acc_name`, `acc_number`, `status` |
+| `investment_type_master` | `name`, `status` |
+| `portfolio` | `account_master_id`, `investment_type_master_id`, `symbol`, `qty`, `investement_price`, `current_price`, `total_investment`, `total_PL`, `status` |
+
+All three tables include `id`, `created_at`, and `updated_at`. Status is stored as enum values `0` (inactive) and `1` (active). Account records include `user_id` so portfolio data remains associated with its owner.
 
 ## Watch-list database requirements
 
@@ -131,6 +153,10 @@ The report request uses the OpenAI Responses API with web search to produce an e
 | Fetch stock indicators | `GET /stock-list/sync` | `stock.list.sync` |
 | Watch List | `GET /watch-list` | `watch.list.index` |
 | Reports | `GET /report`, `POST /report/generate` | `report.*` |
+| Trading Journal | `GET/POST /trading-journals` | `trading-journals.*` |
+| Accounts | Resource `/accounts` | `accounts.*` |
+| Investment Types | Resource `/investment-types` | `investment-types.*` |
+| Portfolio | Resource `/portfolio` | `portfolio.*` |
 
 ## CSV import notes
 

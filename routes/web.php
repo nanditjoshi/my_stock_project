@@ -6,12 +6,18 @@ use App\Http\Controllers\CsvImportController;
 use App\Http\Controllers\StockListController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TradingJournalController;
+use App\Http\Controllers\AccountMasterController;
+use App\Http\Controllers\InvestmentTypeMasterController;
+use App\Http\Controllers\PortfolioController;
 
 Route::get('/', [StockListController::class, 'dashboard'])->name('dashboard');
 Route::post('/dashboard/sync-stock-snapshots', [StockListController::class, 'syncStockSnapshots'])->name('dashboard.stock-snapshots.sync');
 Route::get('/dashboard/download-sm-data', [StockListController::class, 'downloadSmData'])->name('dashboard.download-sm-data');
 
 Route::resource('users', UserController::class);
+Route::resource('accounts', AccountMasterController::class)->parameters(['accounts' => 'account']);
+Route::resource('investment-types', InvestmentTypeMasterController::class)->parameters(['investment-types' => 'investmentType']);
+Route::resource('portfolio', PortfolioController::class);
 Route::get('/csv-import', [CsvImportController::class, 'index'])->name('csv.import.index');
 Route::post('/csv-import', [CsvImportController::class, 'store'])->name('csv.import.store');
 Route::get('/stock-list', [StockListController::class, 'index'])->name('stock.list.index');

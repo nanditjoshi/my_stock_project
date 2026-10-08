@@ -1,0 +1,3 @@
+<div class="form-group"><label>Name</label><input class="form-control" name="name" value="{{ old('name', $investmentType->name ?? '') }}" required maxlength="255"></div>
+<div class="form-group"><label>Status</label><select name="status" class="form-control" required><option value="1" {{ old('status', $investmentType->status ?? '1') == '1' ? 'selected' : '' }}>Active</option><option value="0" {{ old('status', $investmentType->status ?? '1') == '0' ? 'selected' : '' }}>Inactive</option></select></div>
+<button class="btn btn-primary">{{ isset($investmentType) ? 'Update' : 'Save' }}</button> <a class="btn btn-default" href="{{ route('investment-types.index') }}">Back</a>
