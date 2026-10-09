@@ -13,6 +13,7 @@ A Laravel 8 web application for importing stock-screening data, browsing filtere
 - View volume-based watch-list summaries for today, this week, this month, two weeks, the current quarter, the last six months, and this year.
 - Generate an OpenAI-powered company scorecard report using current web-search results.
 - Manage users through the standard Laravel resource routes.
+- Create, view, edit, and delete Knowledge Center entries with a PMS ID, long-form messages, and multiple images.
 - Maintain user-linked accounts and reusable investment-type master records.
 - Create, view, edit, and delete portfolio entries for stocks, mutual funds, PF, FD, PPF, SSC, and other investment types.
 
@@ -92,6 +93,26 @@ The migration `2026_10_08_000000_create_portfolio_master_tables.php` creates:
 
 All three tables include `id`, `created_at`, and `updated_at`. Status is stored as enum values `0` (inactive) and `1` (active). Account records include `user_id` so portfolio data remains associated with its owner.
 
+## Knowledge Center
+
+Use **Knowledge Center** in the sidebar (`/knowledge-center`) to create, view, edit, and delete reference entries. Each entry contains a name, type, optional PMS ID, and three optional long-text messages.
+
+Multiple images can be uploaded for an entry. Image files are stored on Laravel's `public` filesystem disk under `knowledge-center/`; the `images` column stores their paths as a comma-separated string. Configure public image access with:
+
+```bash
+php artisan storage:link
+```
+
+When editing an entry, uploading new images replaces the existing images and deletes their files from storage. If no new images are uploaded, existing images remain unless individually selected for removal. Deleting an entry also deletes its stored image files.
+
+The migrations `2026_10_09_000000_create_knowledge_center_table.php` and `2026_10_09_180000_add_images_and_pms_id_to_knowledge_center_table.php` create and extend the table:
+
+| Table | Main columns |
+| --- | --- |
+| `knowledge_center` | `name`, `type`, `message1`, `message2`, `message3`, `images`, `PMS_id`, `created_date`, `updated_date` |
+
+The message fields use long-text storage. `images` and `PMS_id` are nullable. Run `php artisan migrate` to apply these migrations.
+
 ## Watch-list database requirements
 
 The application stores watch-list data in the existing `whatch_list` table (the spelling is retained for compatibility with the application code).
@@ -154,6 +175,7 @@ The report request uses the OpenAI Responses API with web search to produce an e
 | Watch List | `GET /watch-list` | `watch.list.index` |
 | Reports | `GET /report`, `POST /report/generate` | `report.*` |
 | Trading Journal | `GET/POST /trading-journals` | `trading-journals.*` |
+| Knowledge Center | Resource `/knowledge-center` (except `show`) | `knowledge-center.*` |
 | Accounts | Resource `/accounts` | `accounts.*` |
 | Investment Types | Resource `/investment-types` | `investment-types.*` |
 | Portfolio | Resource `/portfolio` | `portfolio.*` |

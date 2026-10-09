@@ -62,6 +62,9 @@
                     <li class="nav-item">
                         <a href="{{ route('trading-journals.index') }}" class="nav-link"><i class="nav-icon fas fa-book"></i><p>Entry Of Stock</p></a>
                     </li>
+                    <li class="nav-item">
+                        <a href="{{ route('knowledge-center.index') }}" class="nav-link"><i class="nav-icon fas fa-lightbulb"></i><p>Knowledge Center</p></a>
+                    </li>
                     <li class="nav-header">PORTFOLIO</li>
                     <li class="nav-item">
                         <a href="{{ route('accounts.index') }}" class="nav-link"><i class="nav-icon fas fa-wallet"></i><p>Accounts</p></a>
