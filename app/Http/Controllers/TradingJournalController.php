@@ -91,4 +91,25 @@ class TradingJournalController extends Controller
 
         return redirect()->route('trading-journals.index')->with('success', 'Trade journal entry saved.');
     }
+
+    public function storeInvestmentStock(Request $request)
+    {
+        $validated = $request->validate([
+            'symbol' => ['required', 'string', 'max:32'],
+            'current_price' => ['required', 'numeric', 'min:0', 'max:99999999.9999'],
+            'ema_name' => ['required', 'string', 'max:10000'],
+        ]);
+
+        DB::table('trading_journals')->insert([
+            'symbol' => trim($validated['symbol']),
+            'entry_date' => now()->toDateString(),
+            'entry_price' => $validated['current_price'],
+            'reason_of_entry' => $validated['ema_name'],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return redirect()->route('investment-stock.index')
+            ->with('success', $validated['symbol'].' added to the trading journal.');
+    }
 }

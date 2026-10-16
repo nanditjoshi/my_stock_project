@@ -60,6 +60,9 @@
                         <a href="{{ route('report.index') }}" class="nav-link"><i class="nav-icon fas fa-chart-bar"></i><p>Report</p></a>
                     </li>
                     <li class="nav-item">
+                        <a href="{{ route('investment-stock.index') }}" class="nav-link {{ request()->routeIs('investment-stock.index') ? 'active' : '' }}"><i class="nav-icon fas fa-chart-line"></i><p>Investment Stock</p></a>
+                    </li>
+                    <li class="nav-item">
                         <a href="{{ route('trading-journals.index') }}" class="nav-link"><i class="nav-icon fas fa-book"></i><p>Entry Of Stock</p></a>
                     </li>
                     <li class="nav-item">

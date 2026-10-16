@@ -6,6 +6,8 @@ A Laravel 8 web application for importing stock-screening data, browsing filtere
 
 - Import CSV data into an existing database table or create a new table from a CSV file.
 - Browse stock tables, filter records by date, sort columns, and combine duplicate symbols.
+- Open **Investment Stock** from the sidebar to fetch stocks above EMA and browse the result by expandable EMA group.
+- Use **Add** on an Investment Stock row to create a trading journal entry with the stock symbol, today's date, current price as the entry price, and the EMA name as the entry reason.
 - Show a blinking Buy alert for qualifying stocks with sustained presence, high volume, and a positive average change.
 - Add individual stocks to the watch list from the Stock List page.
 - Sync the latest NSE indicator values from a local stock service, including current price, 9 EMA, 21 EMA, and 30-week EMA.

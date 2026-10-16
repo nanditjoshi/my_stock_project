@@ -10,6 +10,7 @@ use App\Http\Controllers\AccountMasterController;
 use App\Http\Controllers\InvestmentTypeMasterController;
 use App\Http\Controllers\PortfolioController;
 use App\Http\Controllers\KnowledgeCenterController;
+use App\Http\Controllers\InvestmentStockController;
 
 Route::get('/', [StockListController::class, 'dashboard'])->name('dashboard');
 Route::post('/dashboard/sync-stock-snapshots', [StockListController::class, 'syncStockSnapshots'])->name('dashboard.stock-snapshots.sync');
@@ -27,8 +28,10 @@ Route::post('/stock-list/watched', [StockListController::class, 'toggleWatched']
 Route::post('/stock-list/watch-list', [StockListController::class, 'storeWatchList'])->name('stock.list.watch-list.store');
 Route::get('/stock-list/sync', [StockListController::class, 'syncStock'])->name('stock.list.sync');
 Route::get('/watch-list', [StockListController::class, 'watchList'])->name('watch.list.index');
+Route::get('/investment-stock', [InvestmentStockController::class, 'index'])->name('investment-stock.index');
 Route::get('/report', [ReportController::class, 'index'])->name('report.index');
 Route::post('/report/generate', [ReportController::class, 'generate'])->name('report.generate');
 Route::get('/trading-journals/symbol-search', [TradingJournalController::class, 'searchSymbols'])->name('trading-journals.symbol-search');
+Route::post('/trading-journals/from-investment-stock', [TradingJournalController::class, 'storeInvestmentStock'])->name('trading-journals.store-investment-stock');
 Route::get('/trading-journals', [TradingJournalController::class, 'index'])->name('trading-journals.index');
 Route::post('/trading-journals', [TradingJournalController::class, 'store'])->name('trading-journals.store');
